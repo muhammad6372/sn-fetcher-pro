@@ -1,1 +1,5 @@
+
 project_id = "ntflzhowlkdimyhcihwa"
+
+[functions.fetch-attendance]
+verify_jwt = false

@@ -1,5 +1,6 @@
 
 import { SNDevice, AttendanceRecord } from '@/types';
+import { supabase } from '@/integrations/supabase/client';
 
 class DataStore {
   private devices: SNDevice[] = [];
@@ -95,62 +96,96 @@ class DataStore {
     this.save();
   }
 
-  // Simulate operations
+  // Real connection test
   async simulateTestConnection(deviceId: string): Promise<boolean> {
     this.updateDevice(deviceId, { status: 'Processing' });
     
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Simulate random success/failure
-    const success = Math.random() > 0.2;
-    this.updateDevice(deviceId, { 
-      status: success ? 'Connected' : 'Failed',
-      lastSync: success ? new Date().toISOString() : undefined
-    });
-    
-    return success;
+    const device = this.devices.find(d => d.id === deviceId);
+    if (!device) {
+      this.updateDevice(deviceId, { status: 'Failed' });
+      return false;
+    }
+
+    try {
+      // Test connection with a simple request to the server
+      const response = await supabase.functions.invoke('fetch-attendance', {
+        body: {
+          sn: device.sn,
+          password: device.password,
+          startDate: device.startDate,
+          endDate: device.startDate // Just test with start date for connection test
+        }
+      });
+
+      if (response.error) {
+        console.error('Connection test failed:', response.error);
+        this.updateDevice(deviceId, { status: 'Failed' });
+        return false;
+      }
+
+      this.updateDevice(deviceId, { 
+        status: 'Connected',
+        lastSync: new Date().toISOString()
+      });
+      
+      return true;
+    } catch (error) {
+      console.error('Connection test error:', error);
+      this.updateDevice(deviceId, { status: 'Failed' });
+      return false;
+    }
   }
 
+  // Real data fetching
   async simulateFetchData(deviceId: string): Promise<number> {
     this.updateDevice(deviceId, { status: 'Processing' });
     
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
     const device = this.devices.find(d => d.id === deviceId);
-    if (!device) return 0;
-
-    // Generate mock attendance data in the exact format shown
-    const recordCount = Math.floor(Math.random() * 200) + 50;
-    const mockRecords: AttendanceRecord[] = [];
-    
-    // Employee codes similar to your data (99, 101, 198, 56, 1001, etc.)
-    const empCodes = ['99', '101', '198', '56', '1001', '102', '203', '87', '156', '299'];
-    
-    for (let i = 0; i < recordCount; i++) {
-      const empCode = empCodes[Math.floor(Math.random() * empCodes.length)];
-      const randomTime = new Date(Date.now() - Math.random() * 86400000 * 7); // Last 7 days
-      
-      mockRecords.push({
-        id: `${Date.now()}-${i}`,
-        sn: device.sn,
-        empCode: empCode,
-        punchTime: randomTime.toISOString(),
-        verifyType: 1, // Mostly 1 as shown in your data
-        status: Math.random() > 0.7 ? 1 : 0, // Mostly 0, sometimes 1
-        workCode: 1 // Always 1 as shown in your data
-      });
+    if (!device) {
+      this.updateDevice(deviceId, { status: 'Failed' });
+      return 0;
     }
 
-    this.addRecords(mockRecords);
-    this.updateDevice(deviceId, { 
-      status: 'Connected',
-      lastRecords: recordCount,
-      lastSync: new Date().toISOString()
-    });
-    
-    return recordCount;
+    try {
+      console.log(`Fetching real data for device ${device.sn}`);
+      
+      const response = await supabase.functions.invoke('fetch-attendance', {
+        body: {
+          sn: device.sn,
+          password: device.password,
+          startDate: device.startDate,
+          endDate: device.endDate
+        }
+      });
+
+      if (response.error) {
+        console.error('Data fetch failed:', response.error);
+        this.updateDevice(deviceId, { status: 'Failed' });
+        return 0;
+      }
+
+      const data = response.data;
+      if (data && data.success && data.records) {
+        this.addRecords(data.records);
+        
+        this.updateDevice(deviceId, { 
+          status: 'Connected',
+          lastRecords: data.count,
+          lastSync: new Date().toISOString()
+        });
+        
+        console.log(`Successfully fetched ${data.count} records for ${device.sn}`);
+        return data.count;
+      } else {
+        console.error('Invalid response data:', data);
+        this.updateDevice(deviceId, { status: 'Failed' });
+        return 0;
+      }
+    } catch (error) {
+      console.error('Data fetch error:', error);
+      this.updateDevice(deviceId, { status: 'Failed' });
+      return 0;
+    }
   }
 }
 
