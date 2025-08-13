@@ -1,3 +1,4 @@
+
 import { useState, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,35 +31,6 @@ export const DataViewer = () => {
 
   const uniqueSNs = [...new Set(records.map(record => record.sn))];
 
-  const getVerifyTypeText = (type: number) => {
-    const types: { [key: number]: string } = {
-      1: 'Fingerprint', 2: 'Password', 3: 'Card', 4: 'Face', 
-      5: 'Password+Fingerprint', 6: 'Password+Card', 7: 'Password+Face',
-      8: 'Fingerprint+Card', 9: 'Fingerprint+Face', 10: 'Card+Face',
-      11: 'Password+Fingerprint+Card', 12: 'Password+Fingerprint+Face',
-      13: 'Password+Card+Face', 14: 'Fingerprint+Card+Face', 15: 'All'
-    };
-    return types[type] || `Type ${type}`;
-  };
-
-  const getStatusText = (status: number) => {
-    const statuses: { [key: number]: string } = {
-      0: 'Check In', 1: 'Check Out', 2: 'Break Out', 3: 'Break In', 4: 'Overtime'
-    };
-    return statuses[status] || `Status ${status}`;
-  };
-
-  const getStatusColor = (status: number) => {
-    switch (status) {
-      case 0: return 'text-status-success'; // Check In
-      case 1: return 'text-status-error';   // Check Out
-      case 2: return 'text-status-warning'; // Break Out
-      case 3: return 'text-status-info';    // Break In
-      case 4: return 'text-status-warning'; // Overtime
-      default: return 'text-muted-foreground';
-    }
-  };
-
   const handleExportCSV = () => {
     if (filteredRecords.length === 0) {
       toast({
@@ -69,17 +41,17 @@ export const DataViewer = () => {
       return;
     }
 
-    const headers = ['Employee Code', 'Punch Time', 'Verify Type', 'Status', 'Work Code'];
-    const csvContent = [
-      headers.join('\t'),
-      ...filteredRecords.map(record => [
+    // Format data exactly like the example: empCode, punchTime, verifyType, status, workCode
+    const csvContent = filteredRecords.map(record => {
+      const punchTimeFormatted = new Date(record.punchTime).toISOString().slice(0, 19).replace('T', ' ');
+      return [
         record.empCode,
-        new Date(record.punchTime).toISOString().replace('T', ' ').replace('Z', ''),
+        punchTimeFormatted,
         record.verifyType,
         record.status,
         record.workCode
-      ].join('\t'))
-    ].join('\n');
+      ].join('\t');
+    }).join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -124,7 +96,7 @@ export const DataViewer = () => {
             className="hover:bg-status-info/10 hover:border-status-info"
           >
             <Download className="w-4 h-4 mr-2" />
-            Export CSV
+            Export .dat
           </Button>
           <Button 
             variant="outline" 
@@ -247,14 +219,12 @@ export const DataViewer = () => {
                         {record.empCode}
                       </TableCell>
                       <TableCell className="font-mono text-sm text-muted-foreground">
-                        {new Date(record.punchTime).toLocaleString('sv-SE').replace('T', ' ')}
+                        {new Date(record.punchTime).toISOString().slice(0, 19).replace('T', ' ')}
                       </TableCell>
-                      <TableCell className="text-sm">
-                        <Badge variant="secondary" className="text-xs">
-                          {record.verifyType}
-                        </Badge>
+                      <TableCell className="text-sm font-mono">
+                        {record.verifyType}
                       </TableCell>
-                      <TableCell className={`font-medium ${getStatusColor(record.status)}`}>
+                      <TableCell className="font-mono text-sm">
                         {record.status}
                       </TableCell>
                       <TableCell className="font-mono text-sm">
