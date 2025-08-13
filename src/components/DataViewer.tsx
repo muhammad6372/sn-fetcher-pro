@@ -1,4 +1,3 @@
-
 import { useState, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,7 +32,7 @@ export const DataViewer = () => {
 
   const getVerifyTypeText = (type: number) => {
     const types: { [key: number]: string } = {
-      1: 'Password', 2: 'Fingerprint', 3: 'Card', 4: 'Face', 
+      1: 'Fingerprint', 2: 'Password', 3: 'Card', 4: 'Face', 
       5: 'Password+Fingerprint', 6: 'Password+Card', 7: 'Password+Face',
       8: 'Fingerprint+Card', 9: 'Fingerprint+Face', 10: 'Card+Face',
       11: 'Password+Fingerprint+Card', 12: 'Password+Fingerprint+Face',
@@ -70,29 +69,29 @@ export const DataViewer = () => {
       return;
     }
 
-    const headers = ['Serial Number', 'Employee Code', 'Punch Time', 'Verify Type', 'Status'];
+    const headers = ['Employee Code', 'Punch Time', 'Verify Type', 'Status', 'Work Code'];
     const csvContent = [
-      headers.join(','),
+      headers.join('\t'),
       ...filteredRecords.map(record => [
-        record.sn,
         record.empCode,
-        record.punchTime,
-        getVerifyTypeText(record.verifyType),
-        getStatusText(record.status)
-      ].join(','))
+        new Date(record.punchTime).toISOString().replace('T', ' ').replace('Z', ''),
+        record.verifyType,
+        record.status,
+        record.workCode
+      ].join('\t'))
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const blob = new Blob([csvContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `attendance_data_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `${filteredRecords[0]?.sn || 'attendance'}_attlog.dat`;
     a.click();
     URL.revokeObjectURL(url);
 
     toast({
       title: "Export Successful",
-      description: `Exported ${filteredRecords.length} attendance records to CSV.`
+      description: `Exported ${filteredRecords.length} attendance records to .dat file.`
     });
   };
 
@@ -221,11 +220,11 @@ export const DataViewer = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Serial Number</TableHead>
                   <TableHead>Employee Code</TableHead>
                   <TableHead>Punch Time</TableHead>
                   <TableHead>Verify Type</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Work Code</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -244,22 +243,22 @@ export const DataViewer = () => {
                 ) : (
                   filteredRecords.slice(0, 100).map((record) => (
                     <TableRow key={record.id} className="hover:bg-muted/30">
-                      <TableCell>
-                        <Badge variant="outline" className="font-mono text-xs">
-                          {record.sn}
-                        </Badge>
+                      <TableCell className="font-medium font-mono">
+                        {record.empCode}
                       </TableCell>
-                      <TableCell className="font-medium">{record.empCode}</TableCell>
                       <TableCell className="font-mono text-sm text-muted-foreground">
-                        {new Date(record.punchTime).toLocaleString()}
+                        {new Date(record.punchTime).toLocaleString('sv-SE').replace('T', ' ')}
                       </TableCell>
                       <TableCell className="text-sm">
                         <Badge variant="secondary" className="text-xs">
-                          {getVerifyTypeText(record.verifyType)}
+                          {record.verifyType}
                         </Badge>
                       </TableCell>
                       <TableCell className={`font-medium ${getStatusColor(record.status)}`}>
-                        {getStatusText(record.status)}
+                        {record.status}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {record.workCode}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-2">

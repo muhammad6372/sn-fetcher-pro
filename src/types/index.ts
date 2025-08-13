@@ -17,6 +17,7 @@ export interface AttendanceRecord {
   punchTime: string;
   verifyType: number;
   status: number;
+  workCode: number; // Adding the 5th column
 }
 
 export interface SystemStats {

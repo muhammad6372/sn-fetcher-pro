@@ -121,12 +121,15 @@ class DataStore {
     const device = this.devices.find(d => d.id === deviceId);
     if (!device) return 0;
 
-    // Generate mock attendance data
+    // Generate mock attendance data in the exact format shown
     const recordCount = Math.floor(Math.random() * 200) + 50;
     const mockRecords: AttendanceRecord[] = [];
     
+    // Employee codes similar to your data (99, 101, 198, 56, 1001, etc.)
+    const empCodes = ['99', '101', '198', '56', '1001', '102', '203', '87', '156', '299'];
+    
     for (let i = 0; i < recordCount; i++) {
-      const empCode = `EMP${String(Math.floor(Math.random() * 1000) + 1).padStart(4, '0')}`;
+      const empCode = empCodes[Math.floor(Math.random() * empCodes.length)];
       const randomTime = new Date(Date.now() - Math.random() * 86400000 * 7); // Last 7 days
       
       mockRecords.push({
@@ -134,8 +137,9 @@ class DataStore {
         sn: device.sn,
         empCode: empCode,
         punchTime: randomTime.toISOString(),
-        verifyType: Math.floor(Math.random() * 15) + 1, // 1-15 verify types
-        status: Math.floor(Math.random() * 5) // 0-4 status codes
+        verifyType: 1, // Mostly 1 as shown in your data
+        status: Math.random() > 0.7 ? 1 : 0, // Mostly 0, sometimes 1
+        workCode: 1 // Always 1 as shown in your data
       });
     }
 
