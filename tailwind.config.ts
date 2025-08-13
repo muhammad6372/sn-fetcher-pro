@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -18,6 +19,9 @@ export default {
 			}
 		},
 		extend: {
+			fontFamily: {
+				geist: ['Geist', 'sans-serif'],
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
@@ -61,6 +65,19 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				industrial: {
+					blue: 'hsl(var(--industrial-blue))',
+					green: 'hsl(var(--industrial-green))',
+					orange: 'hsl(var(--industrial-orange))',
+					red: 'hsl(var(--industrial-red))',
+					gray: 'hsl(var(--industrial-gray))'
+				},
+				status: {
+					success: 'hsl(var(--status-success))',
+					error: 'hsl(var(--status-error))',
+					warning: 'hsl(var(--status-warning))',
+					info: 'hsl(var(--status-info))'
 				}
 			},
 			borderRadius: {
@@ -84,11 +101,33 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				'pulse-glow': {
+					'0%, 100%': {
+						opacity: '1',
+						boxShadow: '0 0 20px hsl(var(--primary))'
+					},
+					'50%': {
+						opacity: '0.8',
+						boxShadow: '0 0 30px hsl(var(--primary))'
+					}
+				},
+				'slide-in': {
+					'0%': {
+						transform: 'translateX(-100%)',
+						opacity: '0'
+					},
+					'100%': {
+						transform: 'translateX(0)',
+						opacity: '1'
+					}
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
+				'slide-in': 'slide-in 0.3s ease-out'
 			}
 		}
 	},
