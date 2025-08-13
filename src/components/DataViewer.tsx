@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Search, Filter, Download, Eye, Trash2 } from 'lucide-react';
+import { Search, Download, Eye, Trash2 } from 'lucide-react';
 import { useDataStore } from '@/hooks/useDataStore';
 import { useToast } from '@/hooks/use-toast';
 
@@ -21,9 +21,9 @@ export const DataViewer = () => {
   const filteredRecords = useMemo(() => {
     return records.filter(record => {
       const matchesSearch = record.sn.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           record.deviceId.toLowerCase().includes(searchTerm.toLowerCase());
+                           record.empCode.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesSN = selectedSN === 'all' || record.sn === selectedSN;
-      const matchesDate = !selectedDate || record.timestamp.startsWith(selectedDate);
+      const matchesDate = !selectedDate || record.punchTime.startsWith(selectedDate);
       
       return matchesSearch && matchesSN && matchesDate;
     });
@@ -31,11 +31,33 @@ export const DataViewer = () => {
 
   const uniqueSNs = [...new Set(records.map(record => record.sn))];
 
-  const getValueColor = (value: number, min: number, max: number) => {
-    const percentage = (value - min) / (max - min);
-    if (percentage < 0.3) return 'text-status-success';
-    if (percentage < 0.7) return 'text-status-warning';
-    return 'text-status-error';
+  const getVerifyTypeText = (type: number) => {
+    const types: { [key: number]: string } = {
+      1: 'Password', 2: 'Fingerprint', 3: 'Card', 4: 'Face', 
+      5: 'Password+Fingerprint', 6: 'Password+Card', 7: 'Password+Face',
+      8: 'Fingerprint+Card', 9: 'Fingerprint+Face', 10: 'Card+Face',
+      11: 'Password+Fingerprint+Card', 12: 'Password+Fingerprint+Face',
+      13: 'Password+Card+Face', 14: 'Fingerprint+Card+Face', 15: 'All'
+    };
+    return types[type] || `Type ${type}`;
+  };
+
+  const getStatusText = (status: number) => {
+    const statuses: { [key: number]: string } = {
+      0: 'Check In', 1: 'Check Out', 2: 'Break Out', 3: 'Break In', 4: 'Overtime'
+    };
+    return statuses[status] || `Status ${status}`;
+  };
+
+  const getStatusColor = (status: number) => {
+    switch (status) {
+      case 0: return 'text-status-success'; // Check In
+      case 1: return 'text-status-error';   // Check Out
+      case 2: return 'text-status-warning'; // Break Out
+      case 3: return 'text-status-info';    // Break In
+      case 4: return 'text-status-warning'; // Overtime
+      default: return 'text-muted-foreground';
+    }
   };
 
   const handleExportCSV = () => {
@@ -48,16 +70,15 @@ export const DataViewer = () => {
       return;
     }
 
-    const headers = ['Serial Number', 'Device ID', 'Timestamp', 'Col3', 'Col4', 'Col5'];
+    const headers = ['Serial Number', 'Employee Code', 'Punch Time', 'Verify Type', 'Status'];
     const csvContent = [
       headers.join(','),
       ...filteredRecords.map(record => [
         record.sn,
-        record.deviceId,
-        record.timestamp,
-        record.col3,
-        record.col4,
-        record.col5
+        record.empCode,
+        record.punchTime,
+        getVerifyTypeText(record.verifyType),
+        getStatusText(record.status)
       ].join(','))
     ].join('\n');
 
@@ -65,13 +86,13 @@ export const DataViewer = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `machine_data_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `attendance_data_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
 
     toast({
       title: "Export Successful",
-      description: `Exported ${filteredRecords.length} records to CSV.`
+      description: `Exported ${filteredRecords.length} attendance records to CSV.`
     });
   };
 
@@ -79,16 +100,13 @@ export const DataViewer = () => {
     clearRecords();
     toast({
       title: "Data Cleared",
-      description: "All machine data records have been cleared."
+      description: "All attendance records have been cleared."
     });
   };
 
-  const avgCol3 = filteredRecords.length > 0 
-    ? Math.round(filteredRecords.reduce((acc, r) => acc + r.col3, 0) / filteredRecords.length * 10) / 10
-    : 0;
-
+  const uniqueEmployees = [...new Set(filteredRecords.map(r => r.empCode))].length;
   const lastUpdate = filteredRecords.length > 0 
-    ? new Date(Math.max(...filteredRecords.map(r => new Date(r.timestamp).getTime()))).toLocaleTimeString()
+    ? new Date(Math.max(...filteredRecords.map(r => new Date(r.punchTime).getTime()))).toLocaleTimeString()
     : '--';
 
   return (
@@ -96,8 +114,8 @@ export const DataViewer = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Data Viewer</h2>
-          <p className="text-muted-foreground">View and analyze machine data records</p>
+          <h2 className="text-2xl font-bold">Attendance Records</h2>
+          <p className="text-muted-foreground">View and analyze attendance data from devices</p>
         </div>
         <div className="flex items-center space-x-3">
           <Button 
@@ -129,7 +147,7 @@ export const DataViewer = () => {
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by SN or Device ID..."
+                  placeholder="Search by SN or Employee Code..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -177,8 +195,8 @@ export const DataViewer = () => {
         </Card>
         <Card className="p-4 gradient-card border-border/50">
           <div className="text-center">
-            <p className="text-2xl font-bold text-status-warning">{avgCol3}</p>
-            <p className="text-sm text-muted-foreground">Avg Col3 Value</p>
+            <p className="text-2xl font-bold text-status-warning">{uniqueEmployees}</p>
+            <p className="text-sm text-muted-foreground">Unique Employees</p>
           </div>
         </Card>
         <Card className="p-4 gradient-card border-border/50">
@@ -193,7 +211,7 @@ export const DataViewer = () => {
       <Card className="gradient-card border-border/50">
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">Machine Data Records</h3>
+            <h3 className="text-lg font-semibold">Attendance Records</h3>
             <Badge variant="outline" className="text-xs">
               {filteredRecords.length} of {records.length} records
             </Badge>
@@ -204,21 +222,20 @@ export const DataViewer = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Serial Number</TableHead>
-                  <TableHead>Device ID</TableHead>
-                  <TableHead>Timestamp</TableHead>
-                  <TableHead className="text-right">Col3</TableHead>
-                  <TableHead className="text-right">Col4</TableHead>
-                  <TableHead className="text-right">Col5</TableHead>
+                  <TableHead>Employee Code</TableHead>
+                  <TableHead>Punch Time</TableHead>
+                  <TableHead>Verify Type</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredRecords.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
+                    <TableCell colSpan={6} className="text-center py-8">
                       <p className="text-muted-foreground">
                         {records.length === 0 
-                          ? "No data records available. Fetch data from devices to see records here."
+                          ? "No attendance records available. Fetch data from devices to see records here."
                           : "No records found matching your filters."
                         }
                       </p>
@@ -232,18 +249,17 @@ export const DataViewer = () => {
                           {record.sn}
                         </Badge>
                       </TableCell>
-                      <TableCell className="font-medium">{record.deviceId}</TableCell>
+                      <TableCell className="font-medium">{record.empCode}</TableCell>
                       <TableCell className="font-mono text-sm text-muted-foreground">
-                        {new Date(record.timestamp).toLocaleString()}
+                        {new Date(record.punchTime).toLocaleString()}
                       </TableCell>
-                      <TableCell className={`text-right font-medium ${getValueColor(record.col3, 20, 30)}`}>
-                        {record.col3.toFixed(1)}
+                      <TableCell className="text-sm">
+                        <Badge variant="secondary" className="text-xs">
+                          {getVerifyTypeText(record.verifyType)}
+                        </Badge>
                       </TableCell>
-                      <TableCell className={`text-right font-medium ${getValueColor(record.col4, 70, 85)}`}>
-                        {record.col4.toFixed(1)}
-                      </TableCell>
-                      <TableCell className={`text-right font-medium ${getValueColor(record.col5, 110, 130)}`}>
-                        {record.col5.toFixed(1)}
+                      <TableCell className={`font-medium ${getStatusColor(record.status)}`}>
+                        {getStatusText(record.status)}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-2">

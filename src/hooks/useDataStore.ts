@@ -1,11 +1,11 @@
 
 import { useState, useEffect } from 'react';
 import { dataStore } from '@/stores/dataStore';
-import { SNDevice, DataRecord } from '@/types';
+import { SNDevice, AttendanceRecord } from '@/types';
 
 export function useDataStore() {
   const [devices, setDevices] = useState<SNDevice[]>([]);
-  const [records, setRecords] = useState<DataRecord[]>([]);
+  const [records, setRecords] = useState<AttendanceRecord[]>([]);
 
   useEffect(() => {
     // Initialize store

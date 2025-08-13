@@ -10,14 +10,13 @@ export interface SNDevice {
   lastSync?: string;
 }
 
-export interface DataRecord {
+export interface AttendanceRecord {
   id: string;
   sn: string;
-  deviceId: string;
-  timestamp: string;
-  col3: number;
-  col4: number;
-  col5: number;
+  empCode: string;
+  punchTime: string;
+  verifyType: number;
+  status: number;
 }
 
 export interface SystemStats {
