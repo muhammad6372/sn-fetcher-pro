@@ -7,25 +7,63 @@ import { SNList } from './SNList';
 import { DataViewer } from './DataViewer';
 import { OverviewStats } from './OverviewStats';
 import { Database, Download, Trash2, Settings, Activity } from 'lucide-react';
+import { useDataStore } from '@/hooks/useDataStore';
+import { useToast } from '@/hooks/use-toast';
 
 export const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isProcessing, setIsProcessing] = useState(false);
+  const { devices, fetchData, clearRecords } = useDataStore();
+  const { toast } = useToast();
 
-  const handleFetchAllData = () => {
+  const handleFetchAllData = async () => {
     setIsProcessing(true);
-    // Simulate API call
-    setTimeout(() => {
+    const connectedDevices = devices.filter(d => d.status === 'Connected');
+    
+    if (connectedDevices.length === 0) {
+      toast({
+        title: "No Connected Devices",
+        description: "Please connect some devices first before fetching data.",
+        variant: "destructive"
+      });
       setIsProcessing(false);
-    }, 3000);
+      return;
+    }
+
+    try {
+      let totalRecords = 0;
+      for (const device of connectedDevices) {
+        const records = await fetchData(device.id);
+        totalRecords += records;
+      }
+      
+      toast({
+        title: "Data Fetch Complete",
+        description: `Successfully fetched ${totalRecords} new records from ${connectedDevices.length} devices.`
+      });
+    } catch (error) {
+      toast({
+        title: "Fetch Failed",
+        description: "An error occurred while fetching data.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const handleCompactAll = () => {
+  const handleCompactAll = async () => {
     setIsProcessing(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsProcessing(false);
-    }, 2000);
+    
+    // Simulate compact operation
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    toast({
+      title: "Compact Complete",
+      description: "All device data has been compacted successfully."
+    });
+    
+    setIsProcessing(false);
   };
 
   return (
@@ -106,10 +144,10 @@ export const Dashboard = () => {
             <Card className="p-6">
               <h3 className="text-lg font-semibold mb-4">System Logs</h3>
               <div className="space-y-2 font-mono text-sm">
-                <div className="text-status-success">✓ [2024-08-13 10:30] SN001 - Data fetched successfully (+125 records)</div>
-                <div className="text-status-success">✓ [2024-08-13 10:29] SN002 - Connected successfully</div>
-                <div className="text-status-error">✗ [2024-08-13 10:28] SN003 - Login failed</div>
-                <div className="text-status-warning">⚠ [2024-08-13 10:27] SN004 - Compact completed</div>
+                <div className="text-status-success">✓ [2024-08-13 10:30] Data fetch completed successfully</div>
+                <div className="text-status-success">✓ [2024-08-13 10:29] {devices.filter(d => d.status === 'Connected').length} devices connected</div>
+                <div className="text-status-warning">⚠ [2024-08-13 10:28] {devices.filter(d => d.status === 'Failed').length} devices failed to connect</div>
+                <div className="text-status-info">ℹ [2024-08-13 10:27] System initialized with {devices.length} devices</div>
               </div>
             </Card>
           </TabsContent>

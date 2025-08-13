@@ -8,47 +8,12 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Edit, Trash2, Play, Square, Download, Settings } from 'lucide-react';
-
-interface SNDevice {
-  id: string;
-  sn: string;
-  password: string;
-  startDate: string;
-  endDate: string;
-  status: 'Connected' | 'Failed' | 'Processing' | 'Idle';
-  lastRecords: number;
-}
+import { useDataStore } from '@/hooks/useDataStore';
+import { useToast } from '@/hooks/use-toast';
 
 export const SNList = () => {
-  const [devices, setDevices] = useState<SNDevice[]>([
-    {
-      id: '1',
-      sn: 'SN001',
-      password: '****',
-      startDate: '2024-01-01',
-      endDate: '2024-12-31',
-      status: 'Connected',
-      lastRecords: 125
-    },
-    {
-      id: '2',
-      sn: 'SN002',
-      password: '****',
-      startDate: '2024-01-01',
-      endDate: '2024-12-31',
-      status: 'Connected',
-      lastRecords: 89
-    },
-    {
-      id: '3',
-      sn: 'SN003',
-      password: '****',
-      startDate: '2024-01-01',
-      endDate: '2024-12-31',
-      status: 'Failed',
-      lastRecords: 0
-    }
-  ]);
+  const { devices, addDevice, deleteDevice, testConnection, fetchData } = useDataStore();
+  const { toast } = useToast();
 
   const [newDevice, setNewDevice] = useState({
     sn: '',
@@ -76,62 +41,72 @@ export const SNList = () => {
 
   const handleAddDevice = () => {
     if (newDevice.sn && newDevice.password) {
-      const device: SNDevice = {
-        id: Date.now().toString(),
+      addDevice({
         sn: newDevice.sn,
         password: newDevice.password,
         startDate: newDevice.startDate,
-        endDate: newDevice.endDate,
-        status: 'Idle',
-        lastRecords: 0
-      };
-      setDevices([...devices, device]);
+        endDate: newDevice.endDate
+      });
+      
       setNewDevice({ sn: '', password: '', startDate: '', endDate: '' });
       setIsAddDialogOpen(false);
+      
+      toast({
+        title: "Device Added",
+        description: `SN ${newDevice.sn} has been added successfully.`
+      });
     }
   };
 
-  const handleDeleteDevice = (id: string) => {
-    setDevices(devices.filter(device => device.id !== id));
+  const handleDeleteDevice = (id: string, sn: string) => {
+    deleteDevice(id);
+    toast({
+      title: "Device Removed",
+      description: `SN ${sn} has been removed from the list.`
+    });
   };
 
-  const handleTestConnection = (sn: string) => {
-    setDevices(devices.map(device => 
-      device.sn === sn 
-        ? { ...device, status: 'Processing' as const }
-        : device
-    ));
-    
-    // Simulate connection test
-    setTimeout(() => {
-      setDevices(devices.map(device => 
-        device.sn === sn 
-          ? { ...device, status: Math.random() > 0.3 ? 'Connected' as const : 'Failed' as const }
-          : device
-      ));
-    }, 2000);
+  const handleTestConnection = async (id: string, sn: string) => {
+    try {
+      const success = await testConnection(id);
+      toast({
+        title: success ? "Connection Successful" : "Connection Failed",
+        description: `SN ${sn} connection test ${success ? 'passed' : 'failed'}.`,
+        variant: success ? "default" : "destructive"
+      });
+    } catch (error) {
+      toast({
+        title: "Connection Error",
+        description: `Failed to test connection for SN ${sn}.`,
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleFetchData = (sn: string) => {
-    setDevices(devices.map(device => 
-      device.sn === sn 
-        ? { ...device, status: 'Processing' as const }
-        : device
-    ));
-    
-    // Simulate data fetch
-    setTimeout(() => {
-      const newRecords = Math.floor(Math.random() * 200) + 50;
-      setDevices(devices.map(device => 
-        device.sn === sn 
-          ? { 
-              ...device, 
-              status: 'Connected' as const,
-              lastRecords: newRecords
-            }
-          : device
-      ));
-    }, 3000);
+  const handleFetchData = async (id: string, sn: string) => {
+    const device = devices.find(d => d.id === id);
+    if (device?.status !== 'Connected') {
+      toast({
+        title: "Device Not Connected",
+        description: `Please test connection for SN ${sn} first.`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const recordCount = await fetchData(id);
+      toast({
+        title: "Data Fetch Complete",
+        description: `Successfully fetched ${recordCount} records from SN ${sn}.`
+      });
+    } catch (error) {
+      toast({
+        title: "Fetch Failed",
+        description: `Failed to fetch data from SN ${sn}.`,
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -216,89 +191,69 @@ export const SNList = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {devices.map((device) => (
-                <TableRow key={device.id} className="hover:bg-muted/30">
-                  <TableCell className="font-medium">{device.sn}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {device.startDate} to {device.endDate}
-                  </TableCell>
-                  <TableCell>{getStatusBadge(device.status)}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <span className="font-medium">{device.lastRecords.toLocaleString()}</span>
-                      {device.lastRecords > 0 && (
-                        <Badge variant="outline" className="text-xs">
-                          +{device.lastRecords}
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleTestConnection(device.sn)}
-                        disabled={device.status === 'Processing'}
-                        className="hover:bg-status-info/10 hover:border-status-info"
-                      >
-                        {device.status === 'Processing' ? (
-                          <Square className="w-3 h-3" />
-                        ) : (
-                          <Play className="w-3 h-3" />
-                        )}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleFetchData(device.sn)}
-                        disabled={device.status !== 'Connected'}
-                        className="hover:bg-status-success/10 hover:border-status-success"
-                      >
-                        <Download className="w-3 h-3" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="hover:bg-muted/50"
-                      >
-                        <Edit className="w-3 h-3" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDeleteDevice(device.id)}
-                        className="hover:bg-status-error/10 hover:border-status-error"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
+              {devices.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                    No devices added yet. Click "Add Device" to get started.
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                devices.map((device) => (
+                  <TableRow key={device.id} className="hover:bg-muted/30">
+                    <TableCell className="font-medium">{device.sn}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {device.startDate} to {device.endDate}
+                    </TableCell>
+                    <TableCell>{getStatusBadge(device.status)}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium">{device.lastRecords.toLocaleString()}</span>
+                        {device.lastRecords > 0 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{device.lastRecords}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleTestConnection(device.id, device.sn)}
+                          disabled={device.status === 'Processing'}
+                          className="hover:bg-status-info/10 hover:border-status-info"
+                        >
+                          {device.status === 'Processing' ? (
+                            <Square className="w-3 h-3" />
+                          ) : (
+                            <Play className="w-3 h-3" />
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleFetchData(device.id, device.sn)}
+                          disabled={device.status !== 'Connected'}
+                          className="hover:bg-status-success/10 hover:border-status-success"
+                        >
+                          <Download className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDeleteDevice(device.id, device.sn)}
+                          className="hover:bg-status-error/10 hover:border-status-error"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
-        </div>
-      </Card>
-
-      {/* Bulk Actions */}
-      <Card className="gradient-card border-border/50">
-        <div className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Bulk Operations</h3>
-          <div className="flex flex-wrap gap-3">
-            <Button variant="outline" className="hover:bg-status-success/10 hover:border-status-success">
-              <Download className="w-4 h-4 mr-2" />
-              Fetch All Data
-            </Button>
-            <Button variant="outline" className="hover:bg-status-warning/10 hover:border-status-warning">
-              <Settings className="w-4 h-4 mr-2" />
-              Compact All
-            </Button>
-            <Button variant="outline" className="hover:bg-status-info/10 hover:border-status-info">
-              <Play className="w-4 h-4 mr-2" />
-              Test All Connections
-            </Button>
-          </div>
         </div>
       </Card>
     </div>

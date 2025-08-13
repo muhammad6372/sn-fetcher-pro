@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,81 +7,29 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Search, Filter, Download, Eye, Trash2 } from 'lucide-react';
-
-interface DataRecord {
-  id: string;
-  sn: string;
-  deviceId: string;
-  timestamp: string;
-  col3: number;
-  col4: number;
-  col5: number;
-}
+import { useDataStore } from '@/hooks/useDataStore';
+import { useToast } from '@/hooks/use-toast';
 
 export const DataViewer = () => {
+  const { devices, records, clearRecords } = useDataStore();
+  const { toast } = useToast();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSN, setSelectedSN] = useState('all');
   const [selectedDate, setSelectedDate] = useState('');
 
-  // Sample data
-  const dataRecords: DataRecord[] = [
-    {
-      id: '1',
-      sn: 'SN001',
-      deviceId: 'DEV001',
-      timestamp: '2024-08-13 10:30:25',
-      col3: 25.6,
-      col4: 78.2,
-      col5: 120.5
-    },
-    {
-      id: '2',
-      sn: 'SN001',
-      deviceId: 'DEV002',
-      timestamp: '2024-08-13 10:29:45',
-      col3: 26.1,
-      col4: 76.8,
-      col5: 118.3
-    },
-    {
-      id: '3',
-      sn: 'SN002',
-      deviceId: 'DEV001',
-      timestamp: '2024-08-13 10:28:15',
-      col3: 24.8,
-      col4: 79.5,
-      col5: 122.1
-    },
-    {
-      id: '4',
-      sn: 'SN002',
-      deviceId: 'DEV003',
-      timestamp: '2024-08-13 10:27:30',
-      col3: 27.2,
-      col4: 75.6,
-      col5: 115.8
-    },
-    {
-      id: '5',
-      sn: 'SN004',
-      deviceId: 'DEV002',
-      timestamp: '2024-08-13 10:26:55',
-      col3: 23.9,
-      col4: 80.1,
-      col5: 125.2
-    }
-  ];
+  const filteredRecords = useMemo(() => {
+    return records.filter(record => {
+      const matchesSearch = record.sn.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           record.deviceId.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSN = selectedSN === 'all' || record.sn === selectedSN;
+      const matchesDate = !selectedDate || record.timestamp.startsWith(selectedDate);
+      
+      return matchesSearch && matchesSN && matchesDate;
+    });
+  }, [records, searchTerm, selectedSN, selectedDate]);
 
-  const filteredRecords = dataRecords.filter(record => {
-    const matchesSearch = record.sn.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         record.deviceId.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesSN = selectedSN === 'all' || record.sn === selectedSN;
-    const matchesDate = !selectedDate || record.timestamp.startsWith(selectedDate);
-    
-    return matchesSearch && matchesSN && matchesDate;
-  });
-
-  const uniqueSNs = [...new Set(dataRecords.map(record => record.sn))];
+  const uniqueSNs = [...new Set(records.map(record => record.sn))];
 
   const getValueColor = (value: number, min: number, max: number) => {
     const percentage = (value - min) / (max - min);
@@ -89,6 +37,59 @@ export const DataViewer = () => {
     if (percentage < 0.7) return 'text-status-warning';
     return 'text-status-error';
   };
+
+  const handleExportCSV = () => {
+    if (filteredRecords.length === 0) {
+      toast({
+        title: "No Data to Export",
+        description: "No records match your current filters.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const headers = ['Serial Number', 'Device ID', 'Timestamp', 'Col3', 'Col4', 'Col5'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredRecords.map(record => [
+        record.sn,
+        record.deviceId,
+        record.timestamp,
+        record.col3,
+        record.col4,
+        record.col5
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `machine_data_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "Export Successful",
+      description: `Exported ${filteredRecords.length} records to CSV.`
+    });
+  };
+
+  const handleClearData = () => {
+    clearRecords();
+    toast({
+      title: "Data Cleared",
+      description: "All machine data records have been cleared."
+    });
+  };
+
+  const avgCol3 = filteredRecords.length > 0 
+    ? Math.round(filteredRecords.reduce((acc, r) => acc + r.col3, 0) / filteredRecords.length * 10) / 10
+    : 0;
+
+  const lastUpdate = filteredRecords.length > 0 
+    ? new Date(Math.max(...filteredRecords.map(r => new Date(r.timestamp).getTime()))).toLocaleTimeString()
+    : '--';
 
   return (
     <div className="space-y-6">
@@ -99,11 +100,21 @@ export const DataViewer = () => {
           <p className="text-muted-foreground">View and analyze machine data records</p>
         </div>
         <div className="flex items-center space-x-3">
-          <Button variant="outline" className="hover:bg-status-info/10 hover:border-status-info">
+          <Button 
+            variant="outline" 
+            onClick={handleExportCSV}
+            disabled={filteredRecords.length === 0}
+            className="hover:bg-status-info/10 hover:border-status-info"
+          >
             <Download className="w-4 h-4 mr-2" />
             Export CSV
           </Button>
-          <Button variant="outline" className="hover:bg-status-error/10 hover:border-status-error">
+          <Button 
+            variant="outline" 
+            onClick={handleClearData}
+            disabled={records.length === 0}
+            className="hover:bg-status-error/10 hover:border-status-error"
+          >
             <Trash2 className="w-4 h-4 mr-2" />
             Clear Data
           </Button>
@@ -146,10 +157,6 @@ export const DataViewer = () => {
                 placeholder="Filter by date"
               />
             </div>
-            <Button variant="outline" className="lg:w-auto">
-              <Filter className="w-4 h-4 mr-2" />
-              Advanced
-            </Button>
           </div>
         </div>
       </Card>
@@ -170,17 +177,13 @@ export const DataViewer = () => {
         </Card>
         <Card className="p-4 gradient-card border-border/50">
           <div className="text-center">
-            <p className="text-2xl font-bold text-status-warning">
-              {Math.round(filteredRecords.reduce((acc, r) => acc + r.col3, 0) / filteredRecords.length * 10) / 10}
-            </p>
+            <p className="text-2xl font-bold text-status-warning">{avgCol3}</p>
             <p className="text-sm text-muted-foreground">Avg Col3 Value</p>
           </div>
         </Card>
         <Card className="p-4 gradient-card border-border/50">
           <div className="text-center">
-            <p className="text-2xl font-bold text-status-info">
-              {filteredRecords.length > 0 ? new Date(filteredRecords[0].timestamp).toLocaleTimeString() : '--'}
-            </p>
+            <p className="text-2xl font-bold text-status-info">{lastUpdate}</p>
             <p className="text-sm text-muted-foreground">Last Update</p>
           </div>
         </Card>
@@ -192,7 +195,7 @@ export const DataViewer = () => {
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold">Machine Data Records</h3>
             <Badge variant="outline" className="text-xs">
-              {filteredRecords.length} of {dataRecords.length} records
+              {filteredRecords.length} of {records.length} records
             </Badge>
           </div>
 
@@ -210,45 +213,55 @@ export const DataViewer = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredRecords.map((record) => (
-                  <TableRow key={record.id} className="hover:bg-muted/30">
-                    <TableCell>
-                      <Badge variant="outline" className="font-mono text-xs">
-                        {record.sn}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">{record.deviceId}</TableCell>
-                    <TableCell className="font-mono text-sm text-muted-foreground">
-                      {record.timestamp}
-                    </TableCell>
-                    <TableCell className={`text-right font-medium ${getValueColor(record.col3, 20, 30)}`}>
-                      {record.col3.toFixed(1)}
-                    </TableCell>
-                    <TableCell className={`text-right font-medium ${getValueColor(record.col4, 70, 85)}`}>
-                      {record.col4.toFixed(1)}
-                    </TableCell>
-                    <TableCell className={`text-right font-medium ${getValueColor(record.col5, 110, 130)}`}>
-                      {record.col5.toFixed(1)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Button size="sm" variant="outline" className="hover:bg-status-info/10">
-                          <Eye className="w-3 h-3" />
-                        </Button>
-                        <Button size="sm" variant="outline" className="hover:bg-status-error/10">
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      </div>
+                {filteredRecords.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8">
+                      <p className="text-muted-foreground">
+                        {records.length === 0 
+                          ? "No data records available. Fetch data from devices to see records here."
+                          : "No records found matching your filters."
+                        }
+                      </p>
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  filteredRecords.slice(0, 100).map((record) => (
+                    <TableRow key={record.id} className="hover:bg-muted/30">
+                      <TableCell>
+                        <Badge variant="outline" className="font-mono text-xs">
+                          {record.sn}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">{record.deviceId}</TableCell>
+                      <TableCell className="font-mono text-sm text-muted-foreground">
+                        {new Date(record.timestamp).toLocaleString()}
+                      </TableCell>
+                      <TableCell className={`text-right font-medium ${getValueColor(record.col3, 20, 30)}`}>
+                        {record.col3.toFixed(1)}
+                      </TableCell>
+                      <TableCell className={`text-right font-medium ${getValueColor(record.col4, 70, 85)}`}>
+                        {record.col4.toFixed(1)}
+                      </TableCell>
+                      <TableCell className={`text-right font-medium ${getValueColor(record.col5, 110, 130)}`}>
+                        {record.col5.toFixed(1)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <Button size="sm" variant="outline" className="hover:bg-status-info/10">
+                            <Eye className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
 
-          {filteredRecords.length === 0 && (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">No records found matching your filters.</p>
+          {filteredRecords.length > 100 && (
+            <div className="mt-4 text-center text-sm text-muted-foreground">
+              Showing first 100 of {filteredRecords.length} records. Use filters to narrow down results.
             </div>
           )}
         </div>
