@@ -1,4 +1,3 @@
-
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -33,7 +32,7 @@ export const OverviewStats = () => {
     {
       title: 'Total Records',
       value: records.length > 999 ? `${(records.length / 1000).toFixed(1)}K` : records.length.toString(),
-      change: `${records.filter(r => new Date(r.timestamp) > new Date(Date.now() - 86400000)).length} today`,
+      change: `${records.filter(r => new Date(r.punchTime) > new Date(Date.now() - 86400000)).length} today`,
       icon: Activity,
       gradient: 'gradient-primary'
     },
